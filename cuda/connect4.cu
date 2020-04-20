@@ -1,1 +1,0 @@
-// cuda parallel implementation of connect 4

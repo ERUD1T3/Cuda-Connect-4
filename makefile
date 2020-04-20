@@ -6,12 +6,14 @@ LDLIBS = -lm
 test:
 	gcc -std=c99 -Wall -o ./bin/c4_c ./core/connect4.c -lm
 
+# test to make sure cuda run well. Output should be 'Max error: 0.000000'
 testcuda:
-	nvcc -o ./bin/cudatest test_saxpy.cu
+	nvcc -o ./bin/cudatest ./core/test_saxpy.cu
 	./bin/cudatest
 
 runtest:
 	./bin/c4_c
+
 
 cudaC4:
 	nvcc -o ./bin/c4_cuda ./core/connect4.cu -lm

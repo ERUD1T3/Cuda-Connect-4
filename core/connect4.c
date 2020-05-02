@@ -41,7 +41,6 @@ static void os_color(int);
 static void os_reset_terminal(void);
 static void os_finish(void);
 
-#if defined(__unix__) || defined(__unix) || defined(__APPLE__)
 #include <unistd.h>
 #include <sys/time.h>
 
@@ -74,54 +73,6 @@ os_finish(void)
     // nothing
 }
 
-#elif _WIN32
-#define _CRT_STDIO_ISO_WIDE_SPECIFIERS
-#include <io.h>
-#include <fcntl.h>
-#include <wchar.h>
-#include <windows.h>
-
-static void
-os_init(void)
-{
-    _setmode(_fileno(stdout), _O_U16TEXT);
-}
-
-static void
-os_color(int color)
-{
-    WORD bits = 0;
-    if (!color || color & 0x1)
-        bits |= FOREGROUND_RED;
-    if (!color || color & 0x2)
-        bits |= FOREGROUND_GREEN;
-    if (!color || color & 0x4)
-        bits |= FOREGROUND_BLUE;
-    if (color & 0x8)
-        bits |= FOREGROUND_INTENSITY;
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), bits);
-}
-
-static void
-os_reset_terminal(void)
-{
-    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_SCREEN_BUFFER_INFO info;
-    GetConsoleScreenBufferInfo(out, &info);
-    info.dwCursorPosition.Y = 0;
-    info.dwCursorPosition.X = 0;
-    COORD origin = {0, 0};
-    DWORD dummy;
-    FillConsoleOutputCharacter(out, ' ', (DWORD)-1, origin, &dummy);
-    SetConsoleCursorPosition(out, info.dwCursorPosition);
-}
-
-static void
-os_finish(void)
-{
-    system("pause");
-}
-#endif
 
 /* Pseudo-Random Number Generator */
 

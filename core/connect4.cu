@@ -165,6 +165,7 @@ static uint64_t connect4_wins[CONNECT4_WIDTH * CONNECT4_HEIGHT][16];
 static void
 connect4_startup(void)
 {
+    // TO BE KERNELIZED
     static int delta[] = {
         -1, -1, -1,  0, -1,  1, 0,  1, 0, -1, 1,  1, 1,  0, 1, -1,
     };
@@ -225,6 +226,7 @@ connect4_valid(uint64_t taken, int play)
 static int
 connect4_drop(uint64_t taken, int play)
 {
+    // TO BE KERNELIZED
     int position = play;
     for (int i = 1; i < CONNECT4_HEIGHT; i++) {
         position += CONNECT4_WIDTH;
@@ -327,6 +329,7 @@ connect4_playout(struct connect4_ai *c,
                  const uint64_t state[2],
                  int turn)
 {
+    // TO BE KERNELIZED
     if (node == CONNECT4_WIN0)
         return 0;
     else if (node == CONNECT4_WIN1)
@@ -392,6 +395,8 @@ connect4_playout(struct connect4_ai *c,
         uint64_t copy[2] = {state[0], state[1]};
         copy[turn] |= place;
         uint64_t dummy;
+
+
         switch (connect4_check(copy[turn], copy[!turn], position, &dummy)) {
             case CONNECT4_RESULT_DRAW:
                 n->playouts[play]++;
@@ -410,9 +415,12 @@ connect4_playout(struct connect4_ai *c,
                 n->playouts[play]++;
                 break;
         }
+
         /* Play out rest of game without node allocation. */
         int original_play = play;
         int original_turn = turn;
+
+        // COULD BE PARALLELIZED
         for (;;) {
             turn = !turn;
             int options[CONNECT4_WIDTH];
@@ -471,6 +479,7 @@ connect4_playout_many(struct connect4_ai *c, uint32_t count)
 static void
 connect4_display(uint64_t p0, uint64_t p1, uint64_t highlight)
 {
+    // TO BE KERNELIZED
     os_reset_terminal();
     wprintf(L"%*s", DISPLAY_INDENT, "");
     for (int w = 0; w < CONNECT4_WIDTH; w++)
@@ -568,8 +577,10 @@ connect4_game_run(struct connect4_game *g,
                   void *args[2],
                   int display)
 {
+    // COULD BE PARALLELIZED
     if (display)
         connect4_display(g->state[0], g->state[1], g->marker);
+    
     for (;;) {
         int play = players[g->turn](g, args[g->turn]);
         enum connect4_result r = connect4_game_move(g, play);

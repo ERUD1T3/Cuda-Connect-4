@@ -122,7 +122,7 @@ static int player_ai(const struct connect4_game *g, void *arg);
 int
 main(void)
 {
-    printf("Test\n");
+    // printf("Test\n");
     /* Options */
     enum player_type {
         PLAYER_HUMAN,

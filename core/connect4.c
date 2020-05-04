@@ -122,6 +122,7 @@ static int player_ai(const struct connect4_game *g, void *arg);
 int
 main(void)
 {
+    // printf("Test\n");
     /* Options */
     enum player_type {
         PLAYER_HUMAN,
@@ -135,6 +136,8 @@ main(void)
 
     /* Main Menu */
     int done = 0;
+
+    /* getting user input */
     do {
         os_reset_terminal();
         int item_color = 10;
@@ -146,7 +149,9 @@ main(void)
         wprintf(L") Computer vs. Computer\n");
         wprintf(L"> ");
         fflush(stdout);
+
         int c = getchar();
+
         switch (c) {
             case EOF:
                 exit(-1);
@@ -171,9 +176,12 @@ main(void)
 
     /* Initialization */
     connect4_startup();
+
     connect4_player players[2];
     void *args[2];
     struct ai_config ai_config[2];
+
+
     for (int i = 0; i < 2; i++) {
         switch (player_type[i]) {
             case PLAYER_HUMAN:
@@ -195,6 +203,8 @@ main(void)
     struct connect4_game game;
     connect4_game_init(&game);
     connect4_game_run(&game, players, args, 1);
+
+    
     if (game.winner == 2) {
         wprintf(L"Draw.\n\n");
     } else {
@@ -371,7 +381,7 @@ connect4_free(struct connect4_ai *c, uint32_t node)
 static struct connect4_ai *
 connect4_init(void *buf, size_t bufsize)
 {
-    struct connect4_ai *c = buf;
+    struct connect4_ai *c = (struct connect4_ai *) buf;
     c->nodes_available = (bufsize - sizeof(*c)) / sizeof(c->nodes[0]);
     c->nodes_allocated = 0;
     c->state[0] = 0;
@@ -685,7 +695,7 @@ player_human(const struct connect4_game *g, void *arg)
 static int
 player_ai(const struct connect4_game *g, void *arg)
 {
-    struct ai_config *conf = arg;
+    struct ai_config *conf = (struct ai_config *)arg;
     if (g->nplays)
         connect4_advance(conf->ai, g->plays[g->nplays - 1]);
     int play = connect4_playout_many(conf->ai, conf->max_playouts);

@@ -7,7 +7,7 @@ LDLIBS = -lm
 cudaC4:
 	nvcc -o ./bin/c4_cuda ./core/connect4.cu -lm
 
-runCudaC4:
+run:
 	./bin/c4_cuda
 
 test:

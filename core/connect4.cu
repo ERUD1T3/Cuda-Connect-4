@@ -123,100 +123,100 @@ int
 main(void)
 {
     printf("Test\n");
-//     /* Options */
-//     enum player_type {
-//         PLAYER_HUMAN,
-//         PLAYER_AI,
-//     } player_type[2] = {
-//         PLAYER_HUMAN, PLAYER_AI
-//     };
+    /* Options */
+    enum player_type {
+        PLAYER_HUMAN,
+        PLAYER_AI,
+    } player_type[2] = {
+        PLAYER_HUMAN, PLAYER_AI
+    };
 
-//     os_init();
-//     setlocale(LC_ALL, "");
+    os_init();
+    setlocale(LC_ALL, "");
 
-//     /* Main Menu */
-//     int done = 0;
+    /* Main Menu */
+    int done = 0;
 
-//     /* getting user input */
-//     do {
-//         os_reset_terminal();
-//         int item_color = 10;
-//         os_color(item_color); fputwc(L'1', stdout); os_color(0);
-//         wprintf(L") Human vs. Computer (default)\n");
-//         os_color(item_color); fputwc(L'2', stdout); os_color(0);
-//         wprintf(L") Computer vs. Human\n");
-//         os_color(item_color); fputwc(L'3', stdout); os_color(0);
-//         wprintf(L") Computer vs. Computer\n");
-//         wprintf(L"> ");
-//         fflush(stdout);
+    /* getting user input */
+    do {
+        os_reset_terminal();
+        int item_color = 10;
+        os_color(item_color); fputwc(L'1', stdout); os_color(0);
+        wprintf(L") Human vs. Computer (default)\n");
+        os_color(item_color); fputwc(L'2', stdout); os_color(0);
+        wprintf(L") Computer vs. Human\n");
+        os_color(item_color); fputwc(L'3', stdout); os_color(0);
+        wprintf(L") Computer vs. Computer\n");
+        wprintf(L"> ");
+        fflush(stdout);
 
-//         int c = getchar();
+        int c = getchar();
 
-//         switch (c) {
-//             case EOF:
-//                 exit(-1);
-//             case '\n':
-//             case '\r':
-//                 done = 1;
-//                 break;
-//             case '1':
-//                 player_type[0] = PLAYER_HUMAN;
-//                 player_type[1] = PLAYER_AI;
-//                 break;
-//             case '2':
-//                 player_type[0] = PLAYER_AI;
-//                 player_type[1] = PLAYER_HUMAN;
-//                 break;
-//             case '3':
-//                 player_type[0] = PLAYER_AI;
-//                 player_type[1] = PLAYER_AI;
-//                 break;
-//         }
-//     } while (!done);
+        switch (c) {
+            case EOF:
+                exit(-1);
+            case '\n':
+            case '\r':
+                done = 1;
+                break;
+            case '1':
+                player_type[0] = PLAYER_HUMAN;
+                player_type[1] = PLAYER_AI;
+                break;
+            case '2':
+                player_type[0] = PLAYER_AI;
+                player_type[1] = PLAYER_HUMAN;
+                break;
+            case '3':
+                player_type[0] = PLAYER_AI;
+                player_type[1] = PLAYER_AI;
+                break;
+        }
+    } while (!done);
 
-//     /* Initialization */
-//     connect4_startup();
+    /* Initialization */
+    connect4_startup();
 
-//     connect4_player players[2];
-//     void *args[2];
-//     struct ai_config ai_config[2];
+    connect4_player players[2];
+    void *args[2];
+    struct ai_config ai_config[2];
 
 
-//     for (int i = 0; i < 2; i++) {
-//         switch (player_type[i]) {
-//             case PLAYER_HUMAN:
-//                 players[i] = (connect4_player)player_human;
-//                 args[i] = NULL;
-//                 break;
-//             case PLAYER_AI:
-//                 players[i] = (connect4_player)player_ai;
-//                 ai_config[i] = (struct ai_config){
-//                     .ai = connect4_init(buf[i], sizeof(buf[i])),
-//                     .max_playouts = CONNECT4_MAX_PLAYOUTS,
-//                 };
-//                 args[i] = &ai_config[i];
-//                 break;
-//         }
-//     }
+    for (int i = 0; i < 2; i++) {
+        switch (player_type[i]) {
+            case PLAYER_HUMAN:
+                players[i] = (connect4_player)player_human;
+                args[i] = NULL;
+                break;
+            case PLAYER_AI:
+                players[i] = (connect4_player)player_ai;
+                ai_config[i] = (struct ai_config){
+                    .ai = connect4_init(buf[i], sizeof(buf[i])),
+                    .max_playouts = CONNECT4_MAX_PLAYOUTS,
+                };
+                args[i] = &ai_config[i];
+                break;
+        }
+    }
 
-//     /* Game Loop */
-//     struct connect4_game game;
-//     connect4_game_init(&game);
-//     connect4_game_run(&game, players, args, 1);
+    /* Game Loop */
+    struct connect4_game game;
+    connect4_game_init(&game);
+    connect4_game_run(&game, players, args, 1);
 
     
-//     if (game.winner == 2) {
-//         wprintf(L"Draw.\n\n");
-//     } else {
-//         wprintf(L"Player ");
-//         os_color(game.winner ? COLOR_PLAYER1 : COLOR_PLAYER0);
-//         fputwc(FULL_BLOCK, stdout);
-//         os_color(0);
-//         wprintf(L" wins!\n\n");
-//     }
+    if (game.winner == 2) {
+        wprintf(L"Draw.\n\n");
+    } else {
+        wprintf(L"Player ");
+        os_color(game.winner ? COLOR_PLAYER1 : COLOR_PLAYER0);
+        fputwc(FULL_BLOCK, stdout);
+        os_color(0);
+        wprintf(L" wins!\n\n");
+    }
 
-//     /* Cleanup */
-//     os_finish();
+    /* Cleanup */
+    os_finish();
     return 0;
 }
 

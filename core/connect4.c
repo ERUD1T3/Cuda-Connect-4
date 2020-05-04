@@ -52,6 +52,12 @@ enum connect4_result {
 
 static uint64_t connect4_wins[CONNECT4_WIDTH * CONNECT4_HEIGHT][16];
 
+struct connect4_node {
+    uint32_t next[CONNECT4_WIDTH];
+    uint32_t playouts[CONNECT4_WIDTH];
+    float    score[CONNECT4_WIDTH];
+};
+
 struct connect4_ai {
     uint64_t state[2];
     uint64_t rng[2];
@@ -60,11 +66,7 @@ struct connect4_ai {
     uint32_t root;
     uint32_t free;
     int turn;
-    struct connect4_node {
-        uint32_t next[CONNECT4_WIDTH];
-        uint32_t playouts[CONNECT4_WIDTH];
-        float    score[CONNECT4_WIDTH];
-    } nodes[];
+    struct connect4_node nodes[];
 };
 
 struct connect4_game {

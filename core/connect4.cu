@@ -179,9 +179,6 @@ main(void)
     } while (!done);
 
     /* Initialization */
-
-    // Kernel invocation
-
     uint64_t* d_connect4_wins;
 
     cudaMalloc((void**)&d_connect4_wins, 
@@ -195,6 +192,7 @@ main(void)
     dim3 ThreadsPerBlock(CONNECT4_HEIGHT, CONNECT4_WIDTH); 
     int BlocksPerGrid = 1;
 
+    // Kernel invocation
     connect4_startup<<< BlocksPerGrid, ThreadsPerBlock>>>(d_connect4_wins, CONNECT4_HEIGHT, CONNECT4_WIDTH);
 
     cudaMemcpy(connect4_wins, d_connect4_wins, 
@@ -273,11 +271,6 @@ connect4_startup(
             -1, -1, -1,  0, -1,  1, 0,  1, 0, -1, 1,  1, 1,  0, 1, -1,
         };
     
-    
-        // replace double loop by kernel
-        // for (int y = 0; y < CONNECT4_HEIGHT; y++) {
-        //     for (int x = 0; x < CONNECT4_WIDTH; x++) {
-    
         int i = 0;
         for (int d = 0; d < 8; d++) {
             for (int s = -3; s <= 0; s++) {
@@ -302,52 +295,8 @@ connect4_startup(
                 }
             }
         }
-    
-        //     }
-        // }
     }
-    
 }
-// static void
-// connect4_startup(void)
-// {
-//     /**
-//     * Fills out the bitboard tables. Must be called before any other
-//     * connect4 function.
-//     */
-//     static int delta[] = {
-//         -1, -1, -1,  0, -1,  1, 0,  1, 0, -1, 1,  1, 1,  0, 1, -1,
-//     };
-
-//     // replace double loop by kernel
-//     for (int y = 0; y < CONNECT4_HEIGHT; y++) {
-//         for (int x = 0; x < CONNECT4_WIDTH; x++) {
-
-//             int i = 0;
-//             for (int d = 0; d < 8; d++) {
-//                 for (int s = -3; s <= 0; s++) {
-//                     uint64_t mask = 0;
-//                     int valid = 1;
-//                     for (int p = s; p < s + 4; p++) {
-//                         int xx = x + delta[d * 2 + 0] * p;
-//                         int yy = y + delta[d * 2 + 1] * p;
-//                         int shift = yy * CONNECT4_WIDTH + xx;
-//                         if (xx < 0 || xx >= CONNECT4_WIDTH ||
-//                             yy < 0 || yy >= CONNECT4_HEIGHT)
-//                             valid = 0;
-//                         else
-//                             mask |= UINT64_C(1) << shift;
-//                     }
-//                     if (valid)
-//                         connect4_wins[y * CONNECT4_WIDTH + x][i++] = mask;
-//                 }
-//             }
-
-//         }
-//     }
-// }
-
-
 
 
 /* Cuda Kernel */

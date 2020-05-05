@@ -50,7 +50,8 @@ enum connect4_result {
     CONNECT4_RESULT_WIN,
 };
 
-static uint64_t connect4_wins[CONNECT4_WIDTH * CONNECT4_HEIGHT][16];
+#define ColN 16
+static uint64_t connect4_wins[CONNECT4_WIDTH * CONNECT4_HEIGHT * ColN];
 
 struct connect4_node {
     uint32_t next[CONNECT4_WIDTH];
@@ -98,7 +99,7 @@ static uint64_t xoroshiro128plus(uint64_t *s);
 static uint64_t splitmix64(uint64_t *x);
 
 /* Cuda Kernels */
-static void connect4_startup(void);
+__global__ static void connect4_startup(uint64_t* d_connect4_wins, int height, int width);
 static int connect4_playout(struct connect4_ai *c, uint32_t node, const uint64_t state[2], int turn);
 static int connect4_playout_many(struct connect4_ai *c, uint32_t count);
 
@@ -180,10 +181,28 @@ main(void)
     /* Initialization */
 
     // Kernel invocation
-    // dim3 threadsPerBlock(...);
-    // dim3 numBlocks(...);
-    // connect4_startup<<<numBlocks, threadsPerBlock>>>();
-    connect4_startup();
+
+    uint64_t* d_connect4_wins;
+
+    cudaMalloc((void**)&d_connect4_wins, 
+        sizeof(uint64_t)*CONNECT4_WIDTH * CONNECT4_HEIGHT* 16);
+    // uint64_t d_connect4_wins[CONNECT4_WIDTH * CONNECT4_HEIGHT][16];
+
+    cudaMemcpy(d_connect4_wins, connect4_wins, 
+        sizeof(uint64_t)*CONNECT4_WIDTH * CONNECT4_HEIGHT* 16,
+        cudaMemcpyHostToDevice);
+    
+    dim3 ThreadsPerBlock(CONNECT4_HEIGHT, CONNECT4_WIDTH); 
+    int BlocksPerGrid = 1;
+
+    connect4_startup<<< BlocksPerGrid, ThreadsPerBlock>>>(d_connect4_wins, CONNECT4_HEIGHT, CONNECT4_WIDTH);
+
+    cudaMemcpy(connect4_wins, d_connect4_wins, 
+        sizeof(uint64_t)*CONNECT4_WIDTH * CONNECT4_HEIGHT* 16,
+        cudaMemcpyDeviceToHost);
+
+    cudaFree(d_connect4_wins);
+    // connect4_startup();
 
     connect4_player players[2];
     void *args[2];
@@ -229,41 +248,104 @@ main(void)
 }
 
 /* Cuda Kernel */
-// __global__
+__global__
 static void
-connect4_startup(void)
+connect4_startup(
+    uint64_t* d_connect4_wins, 
+    int height, 
+    int width)
 {
     /**
     * Fills out the bitboard tables. Must be called before any other
     * connect4 function.
     */
-    static int delta[] = {
-        -1, -1, -1,  0, -1,  1, 0,  1, 0, -1, 1,  1, 1,  0, 1, -1,
-    };
-    for (int y = 0; y < CONNECT4_HEIGHT; y++) {
-        for (int x = 0; x < CONNECT4_WIDTH; x++) {
-            int i = 0;
-            for (int d = 0; d < 8; d++) {
-                for (int s = -3; s <= 0; s++) {
-                    uint64_t mask = 0;
-                    int valid = 1;
-                    for (int p = s; p < s + 4; p++) {
-                        int xx = x + delta[d * 2 + 0] * p;
-                        int yy = y + delta[d * 2 + 1] * p;
-                        int shift = yy * CONNECT4_WIDTH + xx;
-                        if (xx < 0 || xx >= CONNECT4_WIDTH ||
-                            yy < 0 || yy >= CONNECT4_HEIGHT)
-                            valid = 0;
-                        else
-                            mask |= UINT64_C(1) << shift;
-                    }
-                    if (valid)
-                        connect4_wins[y * CONNECT4_WIDTH + x][i++] = mask;
+
+    // row
+    int y = blockIdx.x * blockDim.x + threadIdx.x;
+    //col
+    int x = blockIdx.y * blockDim.y + threadIdx.y;
+    // colsize of d_connect_4
+    int N = 16;
+
+    if(y  < height && x < width) 
+    {
+        static int delta[] = {
+            -1, -1, -1,  0, -1,  1, 0,  1, 0, -1, 1,  1, 1,  0, 1, -1,
+        };
+    
+    
+        // replace double loop by kernel
+        // for (int y = 0; y < CONNECT4_HEIGHT; y++) {
+        //     for (int x = 0; x < CONNECT4_WIDTH; x++) {
+    
+        int i = 0;
+        for (int d = 0; d < 8; d++) {
+            for (int s = -3; s <= 0; s++) {
+                uint64_t mask = 0;
+                int valid = 1;
+
+                for (int p = s; p < s + 4; p++) {
+
+                    int xx = x + delta[d * 2 + 0] * p;
+                    int yy = y + delta[d * 2 + 1] * p;
+                    int shift = yy * width + xx;
+                    if (xx < 0 || xx >= width ||
+                        yy < 0 || yy >= height)
+                        valid = 0;
+                    else
+                        mask |= UINT64_C(1) << shift;
+                }
+
+                if (valid)
+                {
+                    d_connect4_wins[(y * width + x)*N + i++] = mask;
                 }
             }
         }
+    
+        //     }
+        // }
     }
+    
 }
+// static void
+// connect4_startup(void)
+// {
+//     /**
+//     * Fills out the bitboard tables. Must be called before any other
+//     * connect4 function.
+//     */
+//     static int delta[] = {
+//         -1, -1, -1,  0, -1,  1, 0,  1, 0, -1, 1,  1, 1,  0, 1, -1,
+//     };
+
+//     // replace double loop by kernel
+//     for (int y = 0; y < CONNECT4_HEIGHT; y++) {
+//         for (int x = 0; x < CONNECT4_WIDTH; x++) {
+
+//             int i = 0;
+//             for (int d = 0; d < 8; d++) {
+//                 for (int s = -3; s <= 0; s++) {
+//                     uint64_t mask = 0;
+//                     int valid = 1;
+//                     for (int p = s; p < s + 4; p++) {
+//                         int xx = x + delta[d * 2 + 0] * p;
+//                         int yy = y + delta[d * 2 + 1] * p;
+//                         int shift = yy * CONNECT4_WIDTH + xx;
+//                         if (xx < 0 || xx >= CONNECT4_WIDTH ||
+//                             yy < 0 || yy >= CONNECT4_HEIGHT)
+//                             valid = 0;
+//                         else
+//                             mask |= UINT64_C(1) << shift;
+//                     }
+//                     if (valid)
+//                         connect4_wins[y * CONNECT4_WIDTH + x][i++] = mask;
+//                 }
+//             }
+
+//         }
+//     }
+// }
 
 
 
@@ -279,6 +361,8 @@ connect4_playout_many(struct connect4_ai *c, uint32_t count)
     struct connect4_node *n = c->nodes + c->root;
     double best_ratio = -INFINITY;
     int best_move = -1;
+
+
     for (int i = 0; i < CONNECT4_WIDTH; i++)
         if (n->playouts[i]) {
             double ratio = n->score[i] / (double)n->playouts[i];
@@ -287,6 +371,7 @@ connect4_playout_many(struct connect4_ai *c, uint32_t count)
                 best_move = i;
             }
         }
+    
     return best_move;
 }
 
@@ -310,9 +395,14 @@ connect4_playout(struct connect4_ai *c,
     int options[CONNECT4_WIDTH];
     int noptions = 0;
     uint64_t taken = state[0] | state[1];
+
+
+    // replace loop by kernel 
     for (int i = 0; i < CONNECT4_WIDTH; i++)
         if (n->next[i] == CONNECT4_NULL && connect4_valid(taken, i))
             options[noptions++] = i;
+
+    
     int play;
     if (noptions == 0) {
         /* Select a move using upper confidence bound (UCB1). */
@@ -549,7 +639,7 @@ static enum connect4_result
 connect4_check(uint64_t who, uint64_t opponent, int position, uint64_t *how)
 {
     for (int i = 0; i < 16; i++) {
-        uint64_t mask = connect4_wins[position][i];
+        uint64_t mask = connect4_wins[position * ColN + i];
         if (mask && (mask & who) == mask) {
             *how = mask;
             return CONNECT4_RESULT_WIN;

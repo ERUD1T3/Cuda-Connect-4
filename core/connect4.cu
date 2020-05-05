@@ -97,16 +97,18 @@ static uint64_t rotl(const uint64_t x, int k);
 static uint64_t xoroshiro128plus(uint64_t *s);
 static uint64_t splitmix64(uint64_t *x);
 
-// Game functions
+/* Cuda Kernels */
 static void connect4_startup(void);
+static int connect4_playout(struct connect4_ai *c, uint32_t node, const uint64_t state[2], int turn);
+static int connect4_playout_many(struct connect4_ai *c, uint32_t count);
+
+// Game functions
 static enum connect4_result connect4_check(uint64_t who, uint64_t opponent, int position, uint64_t *how);
 static int connect4_valid(uint64_t taken, int play);
 static int connect4_drop(uint64_t taken, int play);
 static uint32_t connect4_alloc(struct connect4_ai *c);
 static struct connect4_ai * connect4_init(void *buf, size_t bufsize);
 static void connect4_advance(struct connect4_ai *c, int play);
-static int connect4_playout(struct connect4_ai *c, uint32_t node, const uint64_t state[2], int turn);
-static int connect4_playout_many(struct connect4_ai *c, uint32_t count);
 static void connect4_display(uint64_t p0, uint64_t p1, uint64_t highlight);
 static void connect4_game_init(struct connect4_game *g);
 static enum connect4_result connect4_game_move(struct connect4_game *g, int play);
@@ -141,6 +143,7 @@ main(void)
     do {
         os_reset_terminal();
         int item_color = 10;
+
         os_color(item_color); fputwc(L'1', stdout); os_color(0);
         wprintf(L") Human vs. Computer (default)\n");
         os_color(item_color); fputwc(L'2', stdout); os_color(0);
@@ -175,6 +178,11 @@ main(void)
     } while (!done);
 
     /* Initialization */
+
+    // Kernel invocation
+    // dim3 threadsPerBlock(...);
+    // dim3 numBlocks(...);
+    // connect4_startup<<<numBlocks, threadsPerBlock>>>();
     connect4_startup();
 
     connect4_player players[2];
@@ -220,68 +228,15 @@ main(void)
     return 0;
 }
 
-static void
-os_init(void)
-{
-    // nothing
-}
-
-static void
-os_color(int color)
-{
-    int base = color & 0x8 ? 30 : 30;
-    const char *bold = color & 0x8 ? ";1" : "";
-    if (color)
-        wprintf(L"\x1b[%d%sm", base + (color & 0x7), bold);
-    else
-        wprintf(L"\x1b[0m");
-}
-
-static void
-os_reset_terminal(void)
-{
-    wprintf(L"\x1b[2J\x1b[H");
-}
-
-static void
-os_finish(void)
-{
-    // nothing
-}
-
-/* Pseudo-Random Number Generator */
-
-static uint64_t rotl(const uint64_t x, int k)
-{
-    return (x << k) | (x >> (64 - k));
-}
-
-static uint64_t xoroshiro128plus(uint64_t *s)
-{
-    const uint64_t s0 = s[0];
-    uint64_t s1 = s[1];
-    const uint64_t result = s0 + s1;
-    s1 ^= s0;
-    s[0] = rotl(s0, 55) ^ s1 ^ (s1 << 14); // a, b
-    s[1] = rotl(s1, 36); // c
-    return result;
-}
-
-static uint64_t splitmix64(uint64_t *x)
-{
-    uint64_t z = (*x += UINT64_C(0x9E3779B97F4A7C15));
-    z = (z ^ (z >> 30)) * UINT64_C(0xBF58476D1CE4E5B9);
-    z = (z ^ (z >> 27)) * UINT64_C(0x94D049BB133111EB);
-    return z ^ (z >> 31);
-}
-
-/**
- * Fills out the bitboard tables. Must be called before any other
- * connect4 function.
- */
+/* Cuda Kernel */
+// __global__
 static void
 connect4_startup(void)
 {
+    /**
+    * Fills out the bitboard tables. Must be called before any other
+    * connect4 function.
+    */
     static int delta[] = {
         -1, -1, -1,  0, -1,  1, 0,  1, 0, -1, 1,  1, 1,  0, 1, -1,
     };
@@ -311,110 +266,32 @@ connect4_startup(void)
 }
 
 
-static enum connect4_result
-connect4_check(uint64_t who, uint64_t opponent, int position, uint64_t *how)
-{
-    for (int i = 0; i < 16; i++) {
-        uint64_t mask = connect4_wins[position][i];
-        if (mask && (mask & who) == mask) {
-            *how = mask;
-            return CONNECT4_RESULT_WIN;
-        }
-    }
-    *how = 0;
-    if ((who | opponent) == UINT64_C(0x3ffffffffff))
-        return CONNECT4_RESULT_DRAW;
-    return CONNECT4_RESULT_UNRESOLVED;
-}
 
+
+/* Cuda Kernel */
+// __global__
 static int
-connect4_valid(uint64_t taken, int play)
+connect4_playout_many(struct connect4_ai *c, uint32_t count)
 {
-    uint64_t top = UINT64_C(1) << play;
-    return play >= 0 && play < CONNECT4_WIDTH && !(top & taken) ? 1 : 0;
-}
-
-static int
-connect4_drop(uint64_t taken, int play)
-{
-    int position = play;
-    for (int i = 1; i < CONNECT4_HEIGHT; i++) {
-        position += CONNECT4_WIDTH;
-        uint64_t mask = UINT64_C(1) << position;
-        if (mask & taken)
-            return position - CONNECT4_WIDTH;
-    }
-    return position;
-}
-
-
-static uint32_t
-connect4_alloc(struct connect4_ai *c)
-{
-    uint32_t node = c->free;
-    if (node != CONNECT4_NULL) {
-        struct connect4_node *n = c->nodes + node;
-        c->nodes_allocated++;
-        c->free = n->next[0];
-        for (int i = 0; i < CONNECT4_WIDTH; i++) {
-            n->next[i] = CONNECT4_NULL;
-            n->playouts[i] = 0;
-            n->score[i] = 0;
-        }
-    }
-    return node;
-}
-
-static void
-connect4_free(struct connect4_ai *c, uint32_t node)
-{
-    if (node < CONNECT4_DRAW) {
-        struct connect4_node *n = c->nodes + node;
-        c->nodes_allocated--;
-        for (int i = 0; i < CONNECT4_WIDTH; i++)
-            connect4_free(c, n->next[i]);
-        n->next[0] = c->free;
-        c->free = node;
-    }
-}
-
-static struct connect4_ai *
-connect4_init(void *buf, size_t bufsize)
-{
-    struct connect4_ai *c = (struct connect4_ai *) buf;
-    c->nodes_available = (bufsize - sizeof(*c)) / sizeof(c->nodes[0]);
-    c->nodes_allocated = 0;
-    c->state[0] = 0;
-    c->state[1] = 0;
-    c->turn = 0;
-    c->free = 0;
-    static uint64_t seed;
-    seed ^= time(0);
-    c->rng[0] = splitmix64(&seed);
-    c->rng[1] = splitmix64(&seed);
-    for (uint32_t i = 0; i < c->nodes_available - 1; i++)
-        c->nodes[i].next[0] = i + 1;
-    c->nodes[c->nodes_available - 1].next[0] = CONNECT4_NULL;
-    c->root = connect4_alloc(c);
-    return c;
-}
-
-static void
-connect4_advance(struct connect4_ai *c, int play)
-{
-    assert(connect4_valid(c->state[0] | c->state[1], play));
-    int position = connect4_drop(c->state[0] | c->state[1], play);
-    c->state[c->turn] |= UINT64_C(1) << position;
-    c->turn = !c->turn;
+    for (uint32_t i = 0; i < count; i++)
+        if (connect4_playout(c, c->root, c->state, c->turn) == -1)
+            break;
     struct connect4_node *n = c->nodes + c->root;
-    uint32_t old_root = c->root;
-    c->root = n->next[play];
-    n->next[play] = CONNECT4_NULL;
-    connect4_free(c, old_root);
-    if (c->root == CONNECT4_NULL)
-        c->root = connect4_alloc(c);
+    double best_ratio = -INFINITY;
+    int best_move = -1;
+    for (int i = 0; i < CONNECT4_WIDTH; i++)
+        if (n->playouts[i]) {
+            double ratio = n->score[i] / (double)n->playouts[i];
+            if (ratio > best_ratio) {
+                best_ratio = ratio;
+                best_move = i;
+            }
+        }
+    return best_move;
 }
 
+/* Cuda Kernel */
+// __global__
 static int
 connect4_playout(struct connect4_ai *c,
                  uint32_t node,
@@ -540,25 +417,175 @@ connect4_playout(struct connect4_ai *c,
     }
 }
 
-static int
-connect4_playout_many(struct connect4_ai *c, uint32_t count)
+/* Host methods */
+
+static void
+os_init(void)
 {
-    for (uint32_t i = 0; i < count; i++)
-        if (connect4_playout(c, c->root, c->state, c->turn) == -1)
-            break;
-    struct connect4_node *n = c->nodes + c->root;
-    double best_ratio = -INFINITY;
-    int best_move = -1;
-    for (int i = 0; i < CONNECT4_WIDTH; i++)
-        if (n->playouts[i]) {
-            double ratio = n->score[i] / (double)n->playouts[i];
-            if (ratio > best_ratio) {
-                best_ratio = ratio;
-                best_move = i;
-            }
-        }
-    return best_move;
+    // nothing
 }
+
+static void
+os_color(int color)
+{
+    int base = color & 0x8 ? 30 : 30;
+    const char *bold = color & 0x8 ? ";1" : "";
+    if (color)
+        wprintf(L"\x1b[%d%sm", base + (color & 0x7), bold);
+    else
+        wprintf(L"\x1b[0m");
+}
+
+static void
+os_reset_terminal(void)
+{
+    wprintf(L"\x1b[2J\x1b[H");
+}
+
+static void
+os_finish(void)
+{
+    // nothing
+}
+
+/* Pseudo-Random Number Generator */
+
+static uint64_t rotl(const uint64_t x, int k)
+{
+    return (x << k) | (x >> (64 - k));
+}
+
+static uint64_t xoroshiro128plus(uint64_t *s)
+{
+    const uint64_t s0 = s[0];
+    uint64_t s1 = s[1];
+    const uint64_t result = s0 + s1;
+    s1 ^= s0;
+    s[0] = rotl(s0, 55) ^ s1 ^ (s1 << 14); // a, b
+    s[1] = rotl(s1, 36); // c
+    return result;
+}
+
+static uint64_t splitmix64(uint64_t *x)
+{
+    uint64_t z = (*x += UINT64_C(0x9E3779B97F4A7C15));
+    z = (z ^ (z >> 30)) * UINT64_C(0xBF58476D1CE4E5B9);
+    z = (z ^ (z >> 27)) * UINT64_C(0x94D049BB133111EB);
+    return z ^ (z >> 31);
+}
+
+
+
+
+/* allocating data to host */
+static uint32_t
+connect4_alloc(struct connect4_ai *c)
+{
+    uint32_t node = c->free;
+    if (node != CONNECT4_NULL) {
+        struct connect4_node *n = c->nodes + node;
+        c->nodes_allocated++;
+        c->free = n->next[0];
+        for (int i = 0; i < CONNECT4_WIDTH; i++) {
+            n->next[i] = CONNECT4_NULL;
+            n->playouts[i] = 0;
+            n->score[i] = 0;
+        }
+    }
+    return node;
+}
+
+/* deallocating data from host */
+static void
+connect4_free(struct connect4_ai *c, uint32_t node)
+{
+    if (node < CONNECT4_DRAW) {
+        struct connect4_node *n = c->nodes + node;
+        c->nodes_allocated--;
+        for (int i = 0; i < CONNECT4_WIDTH; i++)
+            connect4_free(c, n->next[i]);
+        n->next[0] = c->free;
+        c->free = node;
+    }
+}
+
+static int
+connect4_drop(uint64_t taken, int play)
+{
+    int position = play;
+    for (int i = 1; i < CONNECT4_HEIGHT; i++) {
+        position += CONNECT4_WIDTH;
+        uint64_t mask = UINT64_C(1) << position;
+        if (mask & taken)
+            return position - CONNECT4_WIDTH;
+    }
+    return position;
+}
+
+static struct connect4_ai*
+connect4_init(void *buf, size_t bufsize)
+{
+    struct connect4_ai *c = (struct connect4_ai *) buf;
+    c->nodes_available = (bufsize - sizeof(*c)) / sizeof(c->nodes[0]);
+    c->nodes_allocated = 0;
+    c->state[0] = 0;
+    c->state[1] = 0;
+    c->turn = 0;
+    c->free = 0;
+    static uint64_t seed;
+    seed ^= time(0);
+    c->rng[0] = splitmix64(&seed);
+    c->rng[1] = splitmix64(&seed);
+    for (uint32_t i = 0; i < c->nodes_available - 1; i++)
+        c->nodes[i].next[0] = i + 1;
+    c->nodes[c->nodes_available - 1].next[0] = CONNECT4_NULL;
+    /* call to host data allocation */
+    c->root = connect4_alloc(c);
+    return c;
+}
+
+
+static enum connect4_result
+connect4_check(uint64_t who, uint64_t opponent, int position, uint64_t *how)
+{
+    for (int i = 0; i < 16; i++) {
+        uint64_t mask = connect4_wins[position][i];
+        if (mask && (mask & who) == mask) {
+            *how = mask;
+            return CONNECT4_RESULT_WIN;
+        }
+    }
+    *how = 0;
+    if ((who | opponent) == UINT64_C(0x3ffffffffff))
+        return CONNECT4_RESULT_DRAW;
+    return CONNECT4_RESULT_UNRESOLVED;
+}
+
+static int
+connect4_valid(uint64_t taken, int play)
+{
+    uint64_t top = UINT64_C(1) << play;
+    return play >= 0 && play < CONNECT4_WIDTH && !(top & taken) ? 1 : 0;
+}
+
+
+
+static void
+connect4_advance(struct connect4_ai *c, int play)
+{
+    assert(connect4_valid(c->state[0] | c->state[1], play));
+    int position = connect4_drop(c->state[0] | c->state[1], play);
+    c->state[c->turn] |= UINT64_C(1) << position;
+    c->turn = !c->turn;
+    struct connect4_node *n = c->nodes + c->root;
+    uint32_t old_root = c->root;
+    c->root = n->next[play];
+    n->next[play] = CONNECT4_NULL;
+    connect4_free(c, old_root);
+    if (c->root == CONNECT4_NULL)
+        c->root = connect4_alloc(c);
+}
+
 
 /* Terminal/Console User Interface */
 

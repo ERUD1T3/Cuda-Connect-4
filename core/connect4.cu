@@ -102,11 +102,11 @@ static uint64_t splitmix64(uint64_t *x);
 
 /* Cuda Kernels */
 __global__ static void connect4_startup(uint64_t* d_connect4_wins, int height, int width);
-static int connect4_playout(struct connect4_ai *c, uint32_t node, const uint64_t state[2], int turn);
 static int connect4_playout_many(struct connect4_ai *c, uint32_t count);
 static void connect4_display(uint64_t p0, uint64_t p1, uint64_t highlight);
 
 // Game functions
+static int connect4_playout(struct connect4_ai *c, uint32_t node, const uint64_t state[2], int turn);
 static enum connect4_result connect4_check(uint64_t who, uint64_t opponent, int position, uint64_t *how);
 static int connect4_valid(uint64_t taken, int play);
 static int connect4_drop(uint64_t taken, int play);
@@ -326,8 +326,61 @@ connect4_playout_many(struct connect4_ai *c, uint32_t count)
     return best_move;
 }
 
-/* Cuda Kernel */
-// __global__
+
+static void
+connect4_display(uint64_t p0, uint64_t p1, uint64_t highlight)
+{
+    os_reset_terminal();
+    wprintf(L"%*s", DISPLAY_INDENT, "");
+    for (int w = 0; w < CONNECT4_WIDTH; w++)
+        wprintf(L" %-5d", w + 1);
+    wprintf(L"\n\n");
+    for (int h = 0; h < CONNECT4_HEIGHT; h++) {
+        for (int b = 0; b < 2; b++) {
+            wprintf(L"%*s", DISPLAY_INDENT, "");
+            for (int w = 0; w < CONNECT4_WIDTH; w++) {
+                int s = h * CONNECT4_WIDTH + w;
+                int mark = (highlight >> s) & 1;
+                int color = 0;
+                if ((p0 >> s) & 1)
+                    color = COLOR_PLAYER0;
+                else if ((p1 >> s) & 1)
+                    color = COLOR_PLAYER1;
+                if (color) {
+                    os_color(mark ? COLOR_MARKER : color);
+                    fputwc(RIGHT_HALF_BLOCK, stdout);
+                    if (mark)
+                        os_color(0);
+                    os_color(color);
+                    fputwc(FULL_BLOCK, stdout);
+                    fputwc(FULL_BLOCK, stdout);
+                    if (mark) {
+                        os_color(0);
+                        os_color(COLOR_MARKER);
+                    }
+                    fputwc(LEFT_HALF_BLOCK, stdout);
+                    os_color(0);
+                    wprintf(L"  ");
+                } else {
+                    os_color(COLOR_BLANK);
+                    wprintf(L" ");
+                    fputwc(MIDDLE_DOT, stdout);
+                    fputwc(MIDDLE_DOT, stdout);
+                    os_color(0);
+                    wprintf(L"   ");
+                }
+            }
+            fputwc(L'\n', stdout);
+        }
+        fputwc(L'\n', stdout);
+    }
+}
+
+
+
+
+
+
 static int
 connect4_playout(struct connect4_ai *c,
                  uint32_t node,
@@ -633,55 +686,6 @@ connect4_advance(struct connect4_ai *c, int play)
 
 
 /* Terminal/Console User Interface */
-
-static void
-connect4_display(uint64_t p0, uint64_t p1, uint64_t highlight)
-{
-    os_reset_terminal();
-    wprintf(L"%*s", DISPLAY_INDENT, "");
-    for (int w = 0; w < CONNECT4_WIDTH; w++)
-        wprintf(L" %-5d", w + 1);
-    wprintf(L"\n\n");
-    for (int h = 0; h < CONNECT4_HEIGHT; h++) {
-        for (int b = 0; b < 2; b++) {
-            wprintf(L"%*s", DISPLAY_INDENT, "");
-            for (int w = 0; w < CONNECT4_WIDTH; w++) {
-                int s = h * CONNECT4_WIDTH + w;
-                int mark = (highlight >> s) & 1;
-                int color = 0;
-                if ((p0 >> s) & 1)
-                    color = COLOR_PLAYER0;
-                else if ((p1 >> s) & 1)
-                    color = COLOR_PLAYER1;
-                if (color) {
-                    os_color(mark ? COLOR_MARKER : color);
-                    fputwc(RIGHT_HALF_BLOCK, stdout);
-                    if (mark)
-                        os_color(0);
-                    os_color(color);
-                    fputwc(FULL_BLOCK, stdout);
-                    fputwc(FULL_BLOCK, stdout);
-                    if (mark) {
-                        os_color(0);
-                        os_color(COLOR_MARKER);
-                    }
-                    fputwc(LEFT_HALF_BLOCK, stdout);
-                    os_color(0);
-                    wprintf(L"  ");
-                } else {
-                    os_color(COLOR_BLANK);
-                    wprintf(L" ");
-                    fputwc(MIDDLE_DOT, stdout);
-                    fputwc(MIDDLE_DOT, stdout);
-                    os_color(0);
-                    wprintf(L"   ");
-                }
-            }
-            fputwc(L'\n', stdout);
-        }
-        fputwc(L'\n', stdout);
-    }
-}
 
 
 static void

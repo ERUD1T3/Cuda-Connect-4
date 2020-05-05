@@ -1,3 +1,5 @@
+// cuda parallel implementation of connect 4
+
 #include <math.h>
 #include <time.h>
 #include <stdio.h>
@@ -6,8 +8,6 @@
 #include <locale.h>
 #include <stdlib.h>
 #include <inttypes.h>
-#include <unistd.h>
-#include <sys/time.h>
 
 /* Engine, AI, and Display Parameters */
 
@@ -38,187 +38,14 @@
 #define FULL_BLOCK       0x2588u
 #define MIDDLE_DOT       0x00B7u
 
-#define CONNECT4_NULL ((uint32_t)-1)
-#define CONNECT4_WIN0 ((uint32_t)-2)
-#define CONNECT4_WIN1 ((uint32_t)-3)
-#define CONNECT4_DRAW ((uint32_t)-4)
-
-/* Connect Four Engine */
-enum connect4_result {
-    CONNECT4_RESULT_UNRESOLVED,
-    CONNECT4_RESULT_DRAW,
-    CONNECT4_RESULT_WIN,
-};
-
-static uint64_t connect4_wins[CONNECT4_WIDTH * CONNECT4_HEIGHT][16];
-
-struct connect4_node {
-    uint32_t next[CONNECT4_WIDTH];
-    uint32_t playouts[CONNECT4_WIDTH];
-    float    score[CONNECT4_WIDTH];
-};
-
-struct connect4_ai {
-    uint64_t state[2];
-    uint64_t rng[2];
-    uint32_t nodes_available;
-    uint32_t nodes_allocated;
-    uint32_t root;
-    uint32_t free;
-    int turn;
-    struct connect4_node nodes[];
-};
-
-struct connect4_game {
-    uint64_t state[2];
-    uint64_t marker;
-    int turn;
-    int winner;
-    unsigned nplays;
-    int8_t plays[CONNECT4_WIDTH * CONNECT4_HEIGHT];
-};
-
-struct ai_config {
-    struct connect4_ai *ai;
-    uint32_t max_playouts;
-};
-
-// AI search tree storage
-static char buf[2][CONNECT4_MEMORY_SIZE];  
-
-// OS functions
 static void os_init(void);
 static void os_color(int);
 static void os_reset_terminal(void);
 static void os_finish(void);
 
-// Random number generator
-static uint64_t rotl(const uint64_t x, int k);
-static uint64_t xoroshiro128plus(uint64_t *s);
-static uint64_t splitmix64(uint64_t *x);
-
-// Game functions
-static void connect4_startup(void);
-static enum connect4_result connect4_check(uint64_t who, uint64_t opponent, int position, uint64_t *how);
-static int connect4_valid(uint64_t taken, int play);
-static int connect4_drop(uint64_t taken, int play);
-static uint32_t connect4_alloc(struct connect4_ai *c);
-static struct connect4_ai * connect4_init(void *buf, size_t bufsize);
-static void connect4_advance(struct connect4_ai *c, int play);
-static int connect4_playout(struct connect4_ai *c, uint32_t node, const uint64_t state[2], int turn);
-static int connect4_playout_many(struct connect4_ai *c, uint32_t count);
-static void connect4_display(uint64_t p0, uint64_t p1, uint64_t highlight);
-static void connect4_game_init(struct connect4_game *g);
-static enum connect4_result connect4_game_move(struct connect4_game *g, int play);
-typedef int (*connect4_player)(const struct connect4_game *, void *);
-static int connect4_game_run(struct connect4_game *g, connect4_player players[2], void *args[2], int display);
-static int player_human(const struct connect4_game *g, void *arg);
-static int player_ai(const struct connect4_game *g, void *arg);
-
-
-
-/* main function */
-
-int
-main(void)
-{
-    // printf("Test\n");
-    /* Options */
-    enum player_type {
-        PLAYER_HUMAN,
-        PLAYER_AI,
-    } player_type[2] = {
-        PLAYER_HUMAN, PLAYER_AI
-    };
-
-    os_init();
-    setlocale(LC_ALL, "");
-
-    /* Main Menu */
-    int done = 0;
-
-    /* getting user input */
-    do {
-        os_reset_terminal();
-        int item_color = 10;
-        os_color(item_color); fputwc(L'1', stdout); os_color(0);
-        wprintf(L") Human vs. Computer (default)\n");
-        os_color(item_color); fputwc(L'2', stdout); os_color(0);
-        wprintf(L") Computer vs. Human\n");
-        os_color(item_color); fputwc(L'3', stdout); os_color(0);
-        wprintf(L") Computer vs. Computer\n");
-        wprintf(L"> ");
-        fflush(stdout);
-
-        int c = getchar();
-
-        switch (c) {
-            case EOF:
-                exit(-1);
-            case '\n':
-            case '\r':
-                done = 1;
-                break;
-            case '1':
-                player_type[0] = PLAYER_HUMAN;
-                player_type[1] = PLAYER_AI;
-                break;
-            case '2':
-                player_type[0] = PLAYER_AI;
-                player_type[1] = PLAYER_HUMAN;
-                break;
-            case '3':
-                player_type[0] = PLAYER_AI;
-                player_type[1] = PLAYER_AI;
-                break;
-        }
-    } while (!done);
-
-    /* Initialization */
-    connect4_startup();
-
-    connect4_player players[2];
-    void *args[2];
-    struct ai_config ai_config[2];
-
-
-    for (int i = 0; i < 2; i++) {
-        switch (player_type[i]) {
-            case PLAYER_HUMAN:
-                players[i] = (connect4_player)player_human;
-                args[i] = NULL;
-                break;
-            case PLAYER_AI:
-                players[i] = (connect4_player)player_ai;
-                ai_config[i] = (struct ai_config){
-                    .ai = connect4_init(buf[i], sizeof(buf[i])),
-                    .max_playouts = CONNECT4_MAX_PLAYOUTS,
-                };
-                args[i] = &ai_config[i];
-                break;
-        }
-    }
-
-    /* Game Loop */
-    struct connect4_game game;
-    connect4_game_init(&game);
-    connect4_game_run(&game, players, args, 1);
-
-    
-    if (game.winner == 2) {
-        wprintf(L"Draw.\n\n");
-    } else {
-        wprintf(L"Player ");
-        os_color(game.winner ? COLOR_PLAYER1 : COLOR_PLAYER0);
-        fputwc(FULL_BLOCK, stdout);
-        os_color(0);
-        wprintf(L" wins!\n\n");
-    }
-
-    /* Cleanup */
-    os_finish();
-    return 0;
-}
+#if defined(__unix__) || defined(__unix) || defined(__APPLE__)
+#include <unistd.h>
+#include <sys/time.h>
 
 static void
 os_init(void)
@@ -249,14 +76,65 @@ os_finish(void)
     // nothing
 }
 
+#elif _WIN32
+#define _CRT_STDIO_ISO_WIDE_SPECIFIERS
+#include <io.h>
+#include <fcntl.h>
+#include <wchar.h>
+#include <windows.h>
+
+static void
+os_init(void)
+{
+    _setmode(_fileno(stdout), _O_U16TEXT);
+}
+
+static void
+os_color(int color)
+{
+    WORD bits = 0;
+    if (!color || color & 0x1)
+        bits |= FOREGROUND_RED;
+    if (!color || color & 0x2)
+        bits |= FOREGROUND_GREEN;
+    if (!color || color & 0x4)
+        bits |= FOREGROUND_BLUE;
+    if (color & 0x8)
+        bits |= FOREGROUND_INTENSITY;
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), bits);
+}
+
+static void
+os_reset_terminal(void)
+{
+    HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);
+    CONSOLE_SCREEN_BUFFER_INFO info;
+    GetConsoleScreenBufferInfo(out, &info);
+    info.dwCursorPosition.Y = 0;
+    info.dwCursorPosition.X = 0;
+    COORD origin = {0, 0};
+    DWORD dummy;
+    FillConsoleOutputCharacter(out, ' ', (DWORD)-1, origin, &dummy);
+    SetConsoleCursorPosition(out, info.dwCursorPosition);
+}
+
+static void
+os_finish(void)
+{
+    system("pause");
+}
+#endif
+
 /* Pseudo-Random Number Generator */
 
-static uint64_t rotl(const uint64_t x, int k)
+static uint64_t
+rotl(const uint64_t x, int k)
 {
     return (x << k) | (x >> (64 - k));
 }
 
-static uint64_t xoroshiro128plus(uint64_t *s)
+static uint64_t
+xoroshiro128plus(uint64_t *s)
 {
     const uint64_t s0 = s[0];
     uint64_t s1 = s[1];
@@ -267,13 +145,18 @@ static uint64_t xoroshiro128plus(uint64_t *s)
     return result;
 }
 
-static uint64_t splitmix64(uint64_t *x)
+static uint64_t
+splitmix64(uint64_t *x)
 {
     uint64_t z = (*x += UINT64_C(0x9E3779B97F4A7C15));
     z = (z ^ (z >> 30)) * UINT64_C(0xBF58476D1CE4E5B9);
     z = (z ^ (z >> 27)) * UINT64_C(0x94D049BB133111EB);
     return z ^ (z >> 31);
 }
+
+/* Connect Four Engine */
+
+static uint64_t connect4_wins[CONNECT4_WIDTH * CONNECT4_HEIGHT][16];
 
 /**
  * Fills out the bitboard tables. Must be called before any other
@@ -282,6 +165,7 @@ static uint64_t splitmix64(uint64_t *x)
 static void
 connect4_startup(void)
 {
+    // TO BE KERNELIZED
     static int delta[] = {
         -1, -1, -1,  0, -1,  1, 0,  1, 0, -1, 1,  1, 1,  0, 1, -1,
     };
@@ -310,6 +194,11 @@ connect4_startup(void)
     }
 }
 
+enum connect4_result {
+    CONNECT4_RESULT_UNRESOLVED,
+    CONNECT4_RESULT_DRAW,
+    CONNECT4_RESULT_WIN,
+};
 
 static enum connect4_result
 connect4_check(uint64_t who, uint64_t opponent, int position, uint64_t *how)
@@ -337,6 +226,7 @@ connect4_valid(uint64_t taken, int play)
 static int
 connect4_drop(uint64_t taken, int play)
 {
+    // TO BE KERNELIZED
     int position = play;
     for (int i = 1; i < CONNECT4_HEIGHT; i++) {
         position += CONNECT4_WIDTH;
@@ -347,6 +237,24 @@ connect4_drop(uint64_t taken, int play)
     return position;
 }
 
+#define CONNECT4_NULL ((uint32_t)-1)
+#define CONNECT4_WIN0 ((uint32_t)-2)
+#define CONNECT4_WIN1 ((uint32_t)-3)
+#define CONNECT4_DRAW ((uint32_t)-4)
+struct connect4_ai {
+    uint64_t state[2];
+    uint64_t rng[2];
+    uint32_t nodes_available;
+    uint32_t nodes_allocated;
+    uint32_t root;
+    uint32_t free;
+    int turn;
+    struct connect4_node {
+        uint32_t next[CONNECT4_WIDTH];
+        uint32_t playouts[CONNECT4_WIDTH];
+        float    score[CONNECT4_WIDTH];
+    } nodes[];
+};
 
 static uint32_t
 connect4_alloc(struct connect4_ai *c)
@@ -381,7 +289,7 @@ connect4_free(struct connect4_ai *c, uint32_t node)
 static struct connect4_ai *
 connect4_init(void *buf, size_t bufsize)
 {
-    struct connect4_ai *c = (struct connect4_ai *) buf;
+    struct connect4_ai *c = buf;
     c->nodes_available = (bufsize - sizeof(*c)) / sizeof(c->nodes[0]);
     c->nodes_allocated = 0;
     c->state[0] = 0;
@@ -421,6 +329,7 @@ connect4_playout(struct connect4_ai *c,
                  const uint64_t state[2],
                  int turn)
 {
+    // TO BE KERNELIZED
     if (node == CONNECT4_WIN0)
         return 0;
     else if (node == CONNECT4_WIN1)
@@ -486,6 +395,8 @@ connect4_playout(struct connect4_ai *c,
         uint64_t copy[2] = {state[0], state[1]};
         copy[turn] |= place;
         uint64_t dummy;
+
+
         switch (connect4_check(copy[turn], copy[!turn], position, &dummy)) {
             case CONNECT4_RESULT_DRAW:
                 n->playouts[play]++;
@@ -504,9 +415,12 @@ connect4_playout(struct connect4_ai *c,
                 n->playouts[play]++;
                 break;
         }
+
         /* Play out rest of game without node allocation. */
         int original_play = play;
         int original_turn = turn;
+
+        // COULD BE PARALLELIZED
         for (;;) {
             turn = !turn;
             int options[CONNECT4_WIDTH];
@@ -565,6 +479,7 @@ connect4_playout_many(struct connect4_ai *c, uint32_t count)
 static void
 connect4_display(uint64_t p0, uint64_t p1, uint64_t highlight)
 {
+    // TO BE KERNELIZED
     os_reset_terminal();
     wprintf(L"%*s", DISPLAY_INDENT, "");
     for (int w = 0; w < CONNECT4_WIDTH; w++)
@@ -611,6 +526,14 @@ connect4_display(uint64_t p0, uint64_t p1, uint64_t highlight)
     }
 }
 
+struct connect4_game {
+    uint64_t state[2];
+    uint64_t marker;
+    int turn;
+    int winner;
+    unsigned nplays;
+    int8_t plays[CONNECT4_WIDTH * CONNECT4_HEIGHT];
+};
 
 static void
 connect4_game_init(struct connect4_game *g)
@@ -646,7 +569,7 @@ connect4_game_move(struct connect4_game *g, int play)
     abort();
 }
 
-
+typedef int (*connect4_player)(const struct connect4_game *, void *);
 
 static int
 connect4_game_run(struct connect4_game *g,
@@ -654,8 +577,10 @@ connect4_game_run(struct connect4_game *g,
                   void *args[2],
                   int display)
 {
+    // COULD BE PARALLELIZED
     if (display)
         connect4_display(g->state[0], g->state[1], g->marker);
+    
     for (;;) {
         int play = players[g->turn](g, args[g->turn]);
         enum connect4_result r = connect4_game_move(g, play);
@@ -691,14 +616,114 @@ player_human(const struct connect4_game *g, void *arg)
     }
 }
 
+struct ai_config {
+    struct connect4_ai *ai;
+    uint32_t max_playouts;
+};
 
 static int
 player_ai(const struct connect4_game *g, void *arg)
 {
-    struct ai_config *conf = (struct ai_config *)arg;
+    struct ai_config *conf = arg;
     if (g->nplays)
         connect4_advance(conf->ai, g->plays[g->nplays - 1]);
     int play = connect4_playout_many(conf->ai, conf->max_playouts);
     connect4_advance(conf->ai, play);
     return play;
+}
+
+static char buf[2][CONNECT4_MEMORY_SIZE];  // AI search tree storage
+
+int
+main(void)
+{
+
+    printf("Test\n");
+
+    /* Options */
+    enum player_type {
+        PLAYER_HUMAN,
+        PLAYER_AI,
+    } player_type[2] = {
+        PLAYER_HUMAN, PLAYER_AI
+    };
+
+    os_init();
+    setlocale(LC_ALL, "");
+
+    /* Main Menu */
+    int done = 0;
+    do {
+        os_reset_terminal();
+        int item_color = 10;
+        os_color(item_color); fputwc(L'1', stdout); os_color(0);
+        wprintf(L") Human vs. Computer (default)\n");
+        os_color(item_color); fputwc(L'2', stdout); os_color(0);
+        wprintf(L") Computer vs. Human\n");
+        os_color(item_color); fputwc(L'3', stdout); os_color(0);
+        wprintf(L") Computer vs. Computer\n");
+        wprintf(L"> ");
+        fflush(stdout);
+        int c = getchar();
+        switch (c) {
+            case EOF:
+                exit(-1);
+            case '\n':
+            case '\r':
+                done = 1;
+                break;
+            case '1':
+                player_type[0] = PLAYER_HUMAN;
+                player_type[1] = PLAYER_AI;
+                break;
+            case '2':
+                player_type[0] = PLAYER_AI;
+                player_type[1] = PLAYER_HUMAN;
+                break;
+            case '3':
+                player_type[0] = PLAYER_AI;
+                player_type[1] = PLAYER_AI;
+                break;
+        }
+    } while (!done);
+
+    /* Initialization */
+    connect4_startup();
+    connect4_player players[2];
+    void *args[2];
+    struct ai_config ai_config[2];
+    for (int i = 0; i < 2; i++) {
+        switch (player_type[i]) {
+            case PLAYER_HUMAN:
+                players[i] = player_human;
+                args[i] = NULL;
+                break;
+            case PLAYER_AI:
+                players[i] = player_ai;
+                ai_config[i] = (struct ai_config){
+                    .ai = connect4_init(buf[i], sizeof(buf[i])),
+                    .max_playouts = CONNECT4_MAX_PLAYOUTS,
+                };
+                args[i] = &ai_config[i];
+                break;
+        }
+    }
+
+    /* Game Loop */
+    struct connect4_game game;
+    connect4_game_init(&game);
+    connect4_game_run(&game, players, args, 1);
+    if (game.winner == 2) {
+        wprintf(L"Draw.\n\n");
+    } else {
+        wprintf(L"Player ");
+        os_color(game.winner ? COLOR_PLAYER1 : COLOR_PLAYER0);
+        fputwc(FULL_BLOCK, stdout);
+        os_color(0);
+        wprintf(L" wins!\n\n");
+    }
+
+    /* Cleanup */
+    os_finish();
+    return 0;
 }

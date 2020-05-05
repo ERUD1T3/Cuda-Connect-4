@@ -8,13 +8,15 @@
 #include <inttypes.h>
 #include <unistd.h>
 #include <sys/time.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 /* Engine, AI, and Display Parameters */
 
 // Board dimensions (must be <= 64 slots)
 #define CONNECT4_WIDTH  7
 #define CONNECT4_HEIGHT 6
-
+#define MAX_BLOCK_SZ 1024
 // AI constraints
 #define CONNECT4_MEMORY_SIZE  (32UL * 1024 * 1024)
 #define CONNECT4_MAX_PLAYOUTS (512UL * 1024)
@@ -102,6 +104,7 @@ static uint64_t splitmix64(uint64_t *x);
 __global__ static void connect4_startup(uint64_t* d_connect4_wins, int height, int width);
 static int connect4_playout(struct connect4_ai *c, uint32_t node, const uint64_t state[2], int turn);
 static int connect4_playout_many(struct connect4_ai *c, uint32_t count);
+static void connect4_display(uint64_t p0, uint64_t p1, uint64_t highlight);
 
 // Game functions
 static enum connect4_result connect4_check(uint64_t who, uint64_t opponent, int position, uint64_t *how);
@@ -110,7 +113,6 @@ static int connect4_drop(uint64_t taken, int play);
 static uint32_t connect4_alloc(struct connect4_ai *c);
 static struct connect4_ai * connect4_init(void *buf, size_t bufsize);
 static void connect4_advance(struct connect4_ai *c, int play);
-static void connect4_display(uint64_t p0, uint64_t p1, uint64_t highlight);
 static void connect4_game_init(struct connect4_game *g);
 static enum connect4_result connect4_game_move(struct connect4_game *g, int play);
 typedef int (*connect4_player)(const struct connect4_game *, void *);
@@ -344,25 +346,25 @@ connect4_playout(struct connect4_ai *c,
     int options[CONNECT4_WIDTH];
     int noptions = 0;
     uint64_t taken = state[0] | state[1];
-
-
-    // replace loop by kernel 
     for (int i = 0; i < CONNECT4_WIDTH; i++)
         if (n->next[i] == CONNECT4_NULL && connect4_valid(taken, i))
             options[noptions++] = i;
-
-    
     int play;
+
+
     if (noptions == 0) {
         /* Select a move using upper confidence bound (UCB1). */
         uint32_t total = 0;
+
         for (int i = 0; i < CONNECT4_WIDTH; i++)
             if (connect4_valid(taken, i))
                 total += n->playouts[i];
+
         float best_value = -INFINITY;
         float numerator = CONNECT4_C * logf((float)total);
         int best[CONNECT4_WIDTH];
         int nbest = 0;
+
         for (int i = 0; i < CONNECT4_WIDTH; i++) {
             if (connect4_valid(taken, i)) {
                 assert(n->playouts[i]);
@@ -378,6 +380,7 @@ connect4_playout(struct connect4_ai *c,
                 }
             }
         }
+
         play = nbest == 1 ? best[0] : best[xoroshiro128plus(c->rng) % nbest];
         int position = connect4_drop(state[0] | state[1], play);
         uint64_t place = UINT64_C(1) << position;
@@ -391,6 +394,7 @@ connect4_playout(struct connect4_ai *c,
         else if (winner == 2)
             n->score[play] += CONNECT4_SCORE_WIN;
         return winner;
+
     } else {
         /* Select a random, unplayed move. */
         if (noptions == 1)
@@ -420,6 +424,7 @@ connect4_playout(struct connect4_ai *c,
                 n->playouts[play]++;
                 break;
         }
+
         /* Play out rest of game without node allocation. */
         int original_play = play;
         int original_turn = turn;
@@ -440,6 +445,7 @@ connect4_playout(struct connect4_ai *c,
             uint64_t place = UINT64_C(1) << position;
             copy[turn] |= place;
             uint64_t x;
+
             switch (connect4_check(copy[turn], copy[!turn], position, &x)) {
                 case CONNECT4_RESULT_UNRESOLVED:
                     break;

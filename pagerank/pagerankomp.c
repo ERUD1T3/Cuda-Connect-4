@@ -16,12 +16,11 @@ const double Q = .15;
 
 /* non parallel */
 void minmaxPageRank(Vector *vec);
-void dampen(DMatrix *H);                         // transform H matrix into G (dampened) matrix
+void dampen(DMatrix *H); // transform H matrix into G (dampened) matrix
 
 /* parallel */
-void vecNormalize(Vector *vec);                      // normalize values of surfer values
-Vector* matVec(DMatrix *mat, Vector *vec); // multiply compatible matrix and vector
-
+void vecNormalize(Vector *vec);            // normalize values of surfer values
+Vector *matVec(DMatrix *mat, Vector *vec); // multiply compatible matrix and vector
 
 int main(int argc, char *argv[])
 {
@@ -30,10 +29,10 @@ int main(int argc, char *argv[])
 
     printf("number of pages = %d\n", numpg);
 
-    #pragma omp parallel                   
+    #pragma omp parallel
     {
         printf("worker %d/%d ready to roll\n", omp_get_thread_num() + 1, omp_get_num_threads());
-    }  
+    }
 
     /*timers*/
     double startTime, endTime;
@@ -54,9 +53,10 @@ int main(int argc, char *argv[])
     startTime = omp_get_wtime();
 
     dampen(H);
-    
+
     // apply matvec with dampening on for 1000 iterations
-    for (uint iter = 0; iter < K; ++iter) {
+    for (uint iter = 0; iter < K; ++iter)
+    {
         pgrkV = matVec(H, pgrkV); // parallelized matVecDampn
         // printf("pagerank after iter %d\n", iter);
         // printDMatrix(pgrkV);
@@ -107,8 +107,6 @@ void minmaxPageRank(Vector *vec)
            minidx, minval, maxidx, maxval);
 }
 
-
-
 void dampen(DMatrix *mat)
 {
     // multiply compatible matrix and vector
@@ -117,13 +115,12 @@ void dampen(DMatrix *mat)
 
     for (uint r = 0; r < mat->numRow; ++r)
         for (uint c = 0; c < mat->numCol; ++c)
-            mat->data[r][c] = Q / numpg + (1.0 - Q) * mat->data[r][c] ;
+            mat->data[r][c] = Q / numpg + (1.0 - Q) * mat->data[r][c];
 
-//  printf("Dampened : \n");
-//     printDMatrix(mat);
+    //  printf("Dampened : \n");
+    //     printDMatrix(mat);
     // return mat;
 }
-
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 
@@ -133,21 +130,20 @@ void vecNormalize(Vector *vec)
     // parallelized vecNormalize
     double sum = 0.0;
 
-    #pragma omp parallel for reduction(+:sum)
-    for (uint r = 0; r < vec->numRow; ++r) {
+    #pragma omp parallel for reduction(+: sum)
+    for (uint r = 0; r < vec->numRow; ++r)
+    {
         int myid = omp_get_thread_num();
         sum += vec->data[r][0];
         // printf("\nmyid= %d and sum= %.6lf\n", myid, sum);
     }
-
-       
 
     #pragma omp parallel for
     for (uint r = 0; r < vec->numRow; ++r)
         vec->data[r][0] /= sum;
 }
 
-Vector* matVec(DMatrix *mat, Vector *vec)
+Vector *matVec(DMatrix *mat, Vector *vec)
 {
     // multiply compatible matrix and vector
 
@@ -155,7 +151,7 @@ Vector* matVec(DMatrix *mat, Vector *vec)
     // fillDMatrix(res, 0.0);
     // dampen(mat);
 
-    #pragma omp parallel for 
+    #pragma omp parallel for
     for (uint r = 0; r < mat->numRow; ++r)
     {
         double tmp = 0.0;
@@ -173,8 +169,3 @@ Vector* matVec(DMatrix *mat, Vector *vec)
     destroyDMatrix(vec);
     return res;
 }
-
-
-
-
-

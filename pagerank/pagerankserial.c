@@ -13,11 +13,10 @@ const double Q = .15;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 //function prototypes
 void minmaxPageRank(Vector *vec);
-void vecNormalize(Vector *vec);                      // normalize values of surfer values
-void dampen(DMatrix *H);                         // transform H matrix into G (dampened) matrix
-Vector* matVec(DMatrix *mat, Vector *vec); // multiply compatible matrix and vector
+void vecNormalize(Vector *vec);            // normalize values of surfer values
+void dampen(DMatrix *H);                   // transform H matrix into G (dampened) matrix
+Vector *matVec(DMatrix *mat, Vector *vec); // multiply compatible matrix and vector
 // void matVecDampn(DMatrix *mat, Vector *vec, Vector *res); // multiply compatible matrix and vector
-
 
 int main(int argc, char *argv[])
 {
@@ -26,10 +25,8 @@ int main(int argc, char *argv[])
 
     printf("-------Dense Matrix Test-----------------------\n\n");
 
-
     clock_t startTime, endTime;
 
-    
     // create the H matrix
     DMatrix *H = initDMatrix(numpg);
 
@@ -48,11 +45,11 @@ int main(int argc, char *argv[])
     dampen(H);
 
     // apply matvec with dampening on for 1000 iterations
-    for (uint iter = 0; iter < K; ++iter) {
+    for (uint iter = 0; iter < K; ++iter)
+    {
         pgrkV = matVec(H, pgrkV); // parallelized matVecDampn
         // printf("pagerank after iter %d\n", iter);
         // printDMatrix(pgrkV);
-        
     }
 
     if (numpg <= 16)
@@ -65,7 +62,7 @@ int main(int argc, char *argv[])
     minmaxPageRank(pgrkV);
 
     endTime = clock();
-    printf("\nruntime = %.16e\n", ((double) (endTime - startTime)) / CLOCKS_PER_SEC);
+    printf("\nruntime = %.16e\n", ((double)(endTime - startTime)) / CLOCKS_PER_SEC);
 
     // garbage management
     destroyDMatrix(H);
@@ -110,13 +107,14 @@ void dampen(DMatrix *mat)
 
     double tmp;
 
-    for (uint r = 0; r < mat->numRow; ++r) {
-        for (uint c = 0; c < mat->numCol; ++c) {
+    for (uint r = 0; r < mat->numRow; ++r)
+    {
+        for (uint c = 0; c < mat->numCol; ++c)
+        {
             tmp = mat->data[r][c];
-            mat->data[r][c] =  (1 - Q) * tmp + Q / numpg;
+            mat->data[r][c] = (1 - Q) * tmp + Q / numpg;
         }
     }
-        
 
     // printf("Dampened : \n");
     // // printDMatrix(mat);
@@ -137,14 +135,14 @@ void vecNormalize(Vector *vec)
         vec->data[r][0] /= sum;
 }
 
-Vector* matVec(DMatrix *mat, Vector *vec)
+Vector *matVec(DMatrix *mat, Vector *vec)
 {
     // multiply compatible matrix and vector
     // create and initialize at the pagerank Vector
     Vector *res = initVector(vec->numRow);
     // dampen(mat);
     double tmp;
-   
+
     // printf("Dampened : \n");
     // printDMatrix(mat);
 
@@ -163,5 +161,3 @@ Vector* matVec(DMatrix *mat, Vector *vec)
     destroyDMatrix(vec);
     return res;
 }
-
-

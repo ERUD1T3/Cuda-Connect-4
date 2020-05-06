@@ -2,7 +2,7 @@
 CC     = cc -std=c99
 CFLAGS = -Wall -Wextra -O3 -g3
 LDLIBS = -lm
-N = 20000
+N = 500
 
 all: cudaC4 pgrkcuda pgrkmpi pgrkserial pgrkomp
 
@@ -27,7 +27,7 @@ pgrkomp:
 	gcc -o ./bin/pgrkomp -fopenmp ./pagerank/pagerankomp.c
 
 pgrkcuda:
-	nvcc -o ./bin/pgrkcuda ./pagerank/pagerankcuda.cu
+	nvcc -o ./bin/pgrkcuda ./pagerank/pagerankcuda.cu -arch=sm_60
 
 pgrkmpi:
 	mpicc -o ./bin/pgrkmpi ./pagerank/pagerankmpi.c

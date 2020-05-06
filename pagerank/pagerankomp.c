@@ -32,7 +32,7 @@ int main(int argc, char *argv[])
 
     #pragma omp parallel                   
     {
-        printf("worker %d/%d ready to roll\n", omp_get_thread_num(), omp_get_num_threads());
+        printf("worker %d/%d ready to roll\n", omp_get_thread_num() + 1, omp_get_num_threads());
     }  
 
     /*timers*/

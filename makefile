@@ -2,6 +2,9 @@
 CC     = cc -std=c99
 CFLAGS = -Wall -Wextra -O3 -g3
 LDLIBS = -lm
+N = 20000
+
+all: cudaC4 pgrkcuda pgrkmpi pgrkserial pgrkomp
 
 # recipes for connect four
 cudaC4:
@@ -34,3 +37,18 @@ pgrkmpi:
 testcuda:
 	nvcc -o ./bin/cudatest ./connect4/test_saxpy.cu
 	./bin/cudatest
+
+
+# recipes for running binaries
+runmpi:
+	mpiexec ./bin/pgrkmpi $(N)
+
+runomp:
+	./bin/pgrkomp $(N)
+
+runserial:
+	./bin/pgrkserial $(N)
+
+runcuda:
+	./bin/pgrkcuda $(N)
+

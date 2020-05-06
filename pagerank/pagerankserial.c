@@ -3,6 +3,7 @@
 // #include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include "libs/dmatrix.h"
 
 //constants
@@ -24,6 +25,11 @@ int main(int argc, char *argv[])
     uint numpg = (argc > 1) ? atoi(argv[1]) : 16;
 
     printf("-------Dense Matrix Test-----------------------\n\n");
+
+
+    clock_t startTime, endTime;
+
+    
     // create the H matrix
     DMatrix *H = initDMatrix(numpg);
 
@@ -36,6 +42,8 @@ int main(int argc, char *argv[])
     //prints pagerank vector before matvec
     // printf("pagerank vector before web surfing\n");
     // printDMatrix(pgrkV);
+
+    startTime = clock();
 
     dampen(H);
 
@@ -55,6 +63,9 @@ int main(int argc, char *argv[])
 
     // display lowest and highest page ranks
     minmaxPageRank(pgrkV);
+
+    endTime = clock();
+    printf("\nruntime = %.16e\n", ((double) (endTime - startTime)) / CLOCKS_PER_SEC);
 
     // garbage management
     destroyDMatrix(H);

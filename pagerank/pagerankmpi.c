@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
     //reading number of pages from terminal
     uint numpg = (argc > 1) ? atoi(argv[1]) : 16;
 
-    printf("Worker %d/%d ready to roll, numpg= %d\n", pid, numprocs, numpg);
+    printf("Worker %d/%d ready to roll, numpg= %d\n", pid + 1, numprocs, numpg);
     uint npp = numpg / numprocs; // determining the number of pages per processor
 
     // create the H matrix
@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
         minmaxPageRank(totalV);
 
         endTime = MPI_Wtime();
-        printf("\nruntime = %.16f\n", endTime - startTime);
+        printf("\nruntime = %.16e\n", endTime - startTime);
 
 
         destroyDMatrix(totalV);

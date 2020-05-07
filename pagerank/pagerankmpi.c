@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
     //reading number of pages from terminal
     uint numpg = (argc > 1) ? atoi(argv[1]) : 16;
 
-    printf("Worker %d/%d ready to roll, numpg= %d\n", pid + 1, numprocs, numpg);
+    // printf("Worker %d/%d ready to roll, numpg= %d\n", pid + 1, numprocs, numpg);
     uint npp = numpg / numprocs; // determining the number of pages per processor
 
     // create the H matrix
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 
     if (pid == 0)
     {
-        printf("pagerank vector after web surfing\n");
+        // printf("pagerank vector after web surfing\n");
 
         Vector *totalV = initVectorV(numpg, 0.0);
         for (uint i = 0; i < numpg; ++i)

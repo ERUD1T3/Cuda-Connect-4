@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
         minmaxPageRank(totalV);
 
         endTime = MPI_Wtime();
-        printf("\nruntime = %.16e\n", endTime - startTime);
+        printf("\n mpi runtime = %.16e\n\n", endTime - startTime);
 
         destroyDMatrix(totalV);
         free(total);

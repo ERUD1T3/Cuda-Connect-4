@@ -29,10 +29,10 @@ int main(int argc, char *argv[])
 
     printf("number of pages = %d\n", numpg);
 
-    #pragma omp parallel
-    {
-        printf("worker %d/%d ready to roll\n", omp_get_thread_num() + 1, omp_get_num_threads());
-    }
+    // #pragma omp parallel
+    // {
+    //     printf("worker %d/%d ready to roll\n", omp_get_thread_num() + 1, omp_get_num_threads());
+    // }
 
     /*timers*/
     double startTime, endTime;

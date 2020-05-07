@@ -11,10 +11,7 @@ typedef struct pair Pair;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 //function prototypes
 DMatrix *initDMatrix(uint numpg); //initialize new dense matrix
-DMatrix *initDMatrixV(uint rowsize, uint colsize, double val);
 Vector *initVector(uint numpg);   // intialize a new vector
-Vector *initVectorP(uint size, uint numpg);
-Vector *initVectorV(uint size, double val);
 void printDMatrix(DMatrix *dmat);
 void fillDMatrix(DMatrix *mat, double val);
 void destroyDMatrix(DMatrix *mat);
@@ -22,10 +19,6 @@ void destroyDMatrix(DMatrix *mat);
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 // definition of dense matrix object
 
-struct pair 
-{
-    uint pid, locR;
-};
 
 struct dmatrix
 {
@@ -66,26 +59,7 @@ DMatrix *initDMatrix(uint numpg)
 }
 
 
-DMatrix *initDMatrixV(uint rowsize, uint colsize, double val)
-{
-    //initialize a new Dense matrix for rangking algorithm
 
-    // create pointer to matrix
-    DMatrix *m = (DMatrix *)malloc(sizeof(DMatrix));
-    // matrix->numpg = numpg;
-    m->rowSize = rowsize;
-    m->colSize = colsize;
-
-    // setting up data matrix to zeros
-    m->data = (double *) malloc(m->rowSize * m->colSize * sizeof(double));
-    // for (uint r = 0; r < rowsize; ++r) {
-    //     matrix->data[r] = (double *)malloc(colsize * sizeof(double));
-    // }
-
-    fillDMatrix(m, val);
-
-    return m;
-}
 
 
 void destroyDMatrix(DMatrix *m)
@@ -108,23 +82,6 @@ Vector *initVector(uint numpg)
     // setting up data matrix to zeros
     vec->data = (double *)malloc(vec->rowSize * vec->colSize * sizeof(double));
     // for (uint r = 0; r < numpg; ++r)
-    //     vec->data[r] = (double *)malloc(sizeof(double));
-
-    fillDMatrix(vec, 1.0 / numpg);
-    return vec;
-}
-
-Vector *initVectorP(uint size, uint numpg)
-{
-    //initialize the surf vector
-    Vector *vec = (Vector *)malloc(sizeof(Vector));
-    // vec->numpg = numpg;
-    vec->rowSize = size;
-    vec->colSize = 1;
-
-    // setting up data matrix to zeros
-    vec->data = (double *)malloc(vec->rowSize * vec->colSize * sizeof(double ));
-    // for (uint r = 0; r < size; ++r)
     //     vec->data[r] = (double *)malloc(sizeof(double));
 
     fillDMatrix(vec, 1.0 / numpg);

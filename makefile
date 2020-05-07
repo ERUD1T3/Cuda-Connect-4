@@ -2,7 +2,7 @@
 CC     = cc -std=c99
 CFLAGS = -Wall -Wextra -O3 -g3
 LDLIBS = -lm
-N = 500
+N = 16
 
 all: cudaC4 pgrkcuda pgrkmpi pgrkserial pgrkomp
 

@@ -10,7 +10,7 @@
 
 //constants
 #define K 1000 // number of matvec iterations
-#define MAX_BLOCK_SIZE 512
+#define MAX_BLOCK_SIZE 64
 
 const double Q = .15;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +20,7 @@ void minmaxPageRank(Vector *vec);
 void dampen(DMatrix *H); // transform H matrix into G (dampened) matrix
 /* parallel */
 __global__ void d_normalize(double *d_v, int rowSize, int colSize, double *sum);
+__global__ void d_mult(double *vec, double *mat, double *out, const int N, const int M);
 void vecNormalize(Vector *vec);            // normalize values of surfer values
 Vector *matVec(DMatrix *mat, Vector *vec); // multiply compatible matrix and vector
 
@@ -136,7 +137,8 @@ d_normalize(double *d_vec, int rowSize, int colSize, double *d_sum)
     {
         atomicAdd(d_sum, d_vec[r * colSize + 0]);  
     }
-        
+    
+    // printf("_");
     // d_sum += vec->data[r * vec->colSize + 0];
 
     __syncthreads();
@@ -177,12 +179,66 @@ void vecNormalize(Vector *vec)
     cudaFree(d_vec);
 }
 
+__global__
+void d_mult(double *vec, double *mat, double *out, const int N, const int M){
+    int tid= threadIdx.x + blockIdx.x * blockDim.x;
+    double sum=0;
+
+    if(tid<M){
+
+        for(int i=0; i<N; i++)
+        {
+            sum += vec[i * N + 0] * mat[i * M + tid];
+        }
+
+        out[tid] = sum;
+    }
+}
+
+
 Vector *matVec(DMatrix *m, Vector *vec)
 {
     // multiply compatible matrix and vector
     // create and initialize at the pagerank Vector
     Vector *res = initVector(vec->rowSize);
-    // dampen(mat);
+    
+
+    // int N = vec->rowSize;
+
+    // dim3 threadsPerBlock(N, N);
+    // dim3 blocksPerGrid(1, 1);
+    // if (N*N > MAX_BLOCK_SIZE){
+    //     threadsPerBlock.x = MAX_BLOCK_SIZE;
+    //     threadsPerBlock.y = MAX_BLOCK_SIZE;
+    //     blocksPerGrid.x = 1 + double(N)/double(threadsPerBlock.x);
+    //     blocksPerGrid.y = 1 + double(N)/double(threadsPerBlock.y);
+    // }
+    
+    // int threadsPerBlock = MAX_BLOCK_SIZE;
+    // int blocksPerGrid = m->rowSize / MAX_BLOCK_SIZE + 1;
+    // double *d_m, *d_vec, *d_res;
+
+    // //allocate space on device
+    // cudaMalloc((void**)&d_m, sizeof(double) * m->rowSize * m->colSize);
+    // cudaMalloc((void**)&d_vec, sizeof(double) * vec->rowSize * vec->colSize);
+    // cudaMalloc((void**)&d_res, sizeof(double) * res->rowSize * res->colSize);
+
+
+    // cudaMemcpy(d_m, m->data,
+    //     sizeof(double)  * m->rowSize * m->colSize,
+    //     cudaMemcpyHostToDevice);
+
+    // cudaMemcpy(d_vec, vec->data,
+    //     sizeof(double) * vec->rowSize * vec->colSize,
+    //     cudaMemcpyHostToDevice);
+
+    // cudaMemcpy(d_res, res->data,
+    //     sizeof(double) * res->rowSize * res->colSize,
+    //     cudaMemcpyHostToDevice);
+
+    // d_mult<<<blocksPerGrid,threadsPerBlock>>>(d_vec, d_m, d_res, vec->rowSize, m->colSize);
+    
+
     double tmp;
 
     for (uint r = 0; r < m->rowSize; ++r)
@@ -195,6 +251,20 @@ Vector *matVec(DMatrix *m, Vector *vec)
 
         res->data[r * vec->colSize + 0] = tmp;
     }
+
+
+    // cudaMemcpy(res->data, d_res, 
+    //     sizeof(double) * res->rowSize * res->colSize,
+    //     cudaMemcpyDeviceToHost);
+
+    // // deallocate space from device
+  
+    // cudaFree(d_res);
+    // cudaFree(d_vec);
+    // cudaFree(d_m);
+
+    printDMatrix(res);
+
 
     vecNormalize(res);
     destroyDMatrix(vec);

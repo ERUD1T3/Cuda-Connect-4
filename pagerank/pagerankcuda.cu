@@ -20,7 +20,7 @@ void minmaxPageRank(Vector *vec);
 void dampen(DMatrix *H); // transform H matrix into G (dampened) matrix
 /* parallel */
 __global__ void d_normalize(double *d_v, int rowSize, int colSize, double *sum);
-__global__ void d_mult(double *vec, double *mat, double *out, const int N, const int M);
+__global__ void d_mult(double *vec, double *mat, double *out, const int colSize, const int rowSize);
 void vecNormalize(Vector *vec);            // normalize values of surfer values
 Vector *matVec(DMatrix *mat, Vector *vec); // multiply compatible matrix and vector
 
@@ -169,6 +169,7 @@ void vecNormalize(Vector *vec)
     int threadsPerBlock = MAX_BLOCK_SIZE;
 
     d_normalize<<<blocksPerGrid, threadsPerBlock>>>(d_vec, vec->rowSize, vec->colSize, d_sum);
+    printf("d_normalize error code: %s\n",cudaGetErrorString(cudaGetLastError()));
 
     cudaMemcpy(vec->data, d_vec, 
         sizeof(double) * vec->colSize * vec->rowSize,
@@ -180,19 +181,37 @@ void vecNormalize(Vector *vec)
 }
 
 __global__
-void d_mult(double *vec, double *mat, double *out, const int N, const int M){
-    int tid= threadIdx.x + blockIdx.x * blockDim.x;
-    double sum=0;
+void d_mult(double *vec, double *mat, double *out, const int colSize, const int rowSize)
+{
+    int r = threadIdx.x + blockIdx.x * blockDim.x;
+    // int r = threadIdx.x;
+    double sum = 0.0;
+    int vcolSize = 1;
 
-    if(tid<M){
 
-        for(int i=0; i<N; i++)
+     // double tmp;
+
+    // for (uint r = 0; r < m->rowSize; ++r)
+    // {
+    //     tmp = 0.0;
+    //     for (uint c = 0; c < m->colSize; ++c)
+    //     {
+    //         tmp += m->data[r * m->colSize + c] * vec->data[c * vec->colSize + 0];
+    //     }
+    //     res->data[r * vec->colSize + 0] = tmp;
+    // }
+
+
+    if(r < rowSize)
+    {
+        sum = 0.0;
+        for(int c = 0; c < colSize; c++)
         {
-            sum += vec[i * N + 0] * mat[i * M + tid];
+            sum += mat[r * colSize + c] * vec[c * vcolSize + 0];
         }
-
-        out[tid] = sum;
+        out[r * vcolSize + 0] = sum;
     }
+    // __syncthreads();
 }
 
 
@@ -202,71 +221,47 @@ Vector *matVec(DMatrix *m, Vector *vec)
     // create and initialize at the pagerank Vector
     Vector *res = initVector(vec->rowSize);
     
+    int threadsPerBlock = MAX_BLOCK_SIZE;
+    int blocksPerGrid = m->rowSize / MAX_BLOCK_SIZE + 1;
+    // int blocksPerGrid = 1;
+    double *d_m, *d_vec, *d_res;
 
-    // int N = vec->rowSize;
-
-    // dim3 threadsPerBlock(N, N);
-    // dim3 blocksPerGrid(1, 1);
-    // if (N*N > MAX_BLOCK_SIZE){
-    //     threadsPerBlock.x = MAX_BLOCK_SIZE;
-    //     threadsPerBlock.y = MAX_BLOCK_SIZE;
-    //     blocksPerGrid.x = 1 + double(N)/double(threadsPerBlock.x);
-    //     blocksPerGrid.y = 1 + double(N)/double(threadsPerBlock.y);
-    // }
-    
-    // int threadsPerBlock = MAX_BLOCK_SIZE;
-    // int blocksPerGrid = m->rowSize / MAX_BLOCK_SIZE + 1;
-    // double *d_m, *d_vec, *d_res;
-
-    // //allocate space on device
-    // cudaMalloc((void**)&d_m, sizeof(double) * m->rowSize * m->colSize);
-    // cudaMalloc((void**)&d_vec, sizeof(double) * vec->rowSize * vec->colSize);
-    // cudaMalloc((void**)&d_res, sizeof(double) * res->rowSize * res->colSize);
+    //allocate space on device
+    cudaMalloc((void**)&d_m, sizeof(double) * m->rowSize * m->colSize);
+    cudaMalloc((void**)&d_vec, sizeof(double) * vec->rowSize * vec->colSize);
+    cudaMalloc((void**)&d_res, sizeof(double) * res->rowSize * res->colSize);
 
 
-    // cudaMemcpy(d_m, m->data,
-    //     sizeof(double)  * m->rowSize * m->colSize,
-    //     cudaMemcpyHostToDevice);
+    cudaMemcpy(d_m, m->data,
+        sizeof(double)  * m->rowSize * m->colSize,
+        cudaMemcpyHostToDevice);
 
-    // cudaMemcpy(d_vec, vec->data,
-    //     sizeof(double) * vec->rowSize * vec->colSize,
-    //     cudaMemcpyHostToDevice);
+    cudaMemcpy(d_vec, vec->data,
+        sizeof(double) * vec->rowSize * vec->colSize,
+        cudaMemcpyHostToDevice);
 
-    // cudaMemcpy(d_res, res->data,
-    //     sizeof(double) * res->rowSize * res->colSize,
-    //     cudaMemcpyHostToDevice);
+    cudaMemcpy(d_res, res->data,
+        sizeof(double) * res->rowSize * res->colSize,
+        cudaMemcpyHostToDevice);
 
-    // d_mult<<<blocksPerGrid,threadsPerBlock>>>(d_vec, d_m, d_res, vec->rowSize, m->colSize);
-    
+    d_mult<<<blocksPerGrid, threadsPerBlock>>>(d_vec, d_m, d_res, m->colSize, m->rowSize);   
+    // printf("d_mult error code: %s\n",cudaGetErrorString(cudaGetLastError()));
 
-    double tmp;
+    cudaMemcpy(res->data, d_res, 
+        sizeof(double) * res->rowSize * res->colSize,
+        cudaMemcpyDeviceToHost);
 
-    for (uint r = 0; r < m->rowSize; ++r)
-    {
-        tmp = 0.0;
-        for (uint c = 0; c < m->colSize; ++c)
-        {
-            tmp += m->data[r * m->colSize + c] * vec->data[c * vec->colSize + 0];
-        }
-
-        res->data[r * vec->colSize + 0] = tmp;
-    }
-
-
-    // cudaMemcpy(res->data, d_res, 
-    //     sizeof(double) * res->rowSize * res->colSize,
-    //     cudaMemcpyDeviceToHost);
-
-    // // deallocate space from device
+    // deallocate space from device
   
-    // cudaFree(d_res);
-    // cudaFree(d_vec);
-    // cudaFree(d_m);
+    cudaFree(d_res);
+    cudaFree(d_vec);
+    cudaFree(d_m);
 
-    printDMatrix(res);
+    // printDMatrix(res);
 
 
-    vecNormalize(res);
+    // vecNormalize(res);
     destroyDMatrix(vec);
+
     return res;
 }

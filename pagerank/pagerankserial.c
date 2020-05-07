@@ -157,7 +157,7 @@ Vector *matVec(DMatrix *mat, Vector *vec)
         res->data[r][0] = tmp;
     }
 
-    vecNormalize(res);
+    // vecNormalize(res);
     destroyDMatrix(vec);
     return res;
 }

@@ -27,7 +27,8 @@ pgrkomp:
 	gcc -o ./bin/pgrkomp -fopenmp ./pagerank/pagerankomp.c
 
 pgrkcuda:
-	nvcc -o ./bin/pgrkcuda ./pagerank/pagerankcuda.cu -arch=sm_60
+	# nvcc -o ./bin/pgrkcuda ./pagerank/pagerankcuda.cu -arch=sm_60
+	nvcc -o ./bin/pgrkcuda ./pagerank/pagerankcuda.cu
 
 pgrkmpi:
 	mpicc -o ./bin/pgrkmpi ./pagerank/pagerankmpi.c

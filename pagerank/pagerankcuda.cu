@@ -9,7 +9,7 @@
 
 //constants
 #define K 1000 // number of matvec iterations
-#define MAX_BLOCK_SIZE 256
+#define MAX_BLOCK_SIZE 1024
 
 const float Q = .15;
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -126,16 +126,20 @@ __global__ void
 d_normalize(float *d_vec, int rowSize, int colSize, float *d_sum)
 {
     // normalize vector using gpu
-    int index = threadIdx.x;
-    int stride = blockDim.x;
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
+    int stride = gridDim.x * blockDim.x;
 
-    if (threadIdx.x == 0) *d_sum = 0;
-    __syncthreads();
+    // if (threadIdx.x == 0) *d_sum = 0;
+    // __syncthreads();
+
+    float tmp_sum = 0.0;
 
     for (int r = index; r < rowSize; r += stride)
     {
-        atomicAdd(d_sum, d_vec[r * colSize + 0]);  
+        tmp_sum += d_vec[r * colSize + 0];
     }
+    
+    atomicAdd(d_sum, tmp_sum);
 
     __syncthreads();
 
@@ -151,7 +155,7 @@ void vecNormalize(Vector *vec)
     // normalize the content of vector
 
     //kernel call
-    float *d_vec, *d_sum;
+    float *d_vec, *d_sum, zero = 0.0;
 
     //allocate space on device
     cudaMalloc((void**)&d_sum, sizeof(float));
@@ -160,8 +164,12 @@ void vecNormalize(Vector *vec)
     cudaMemcpy(d_vec, vec->data,
         sizeof(float) * vec->colSize * vec->rowSize,
         cudaMemcpyHostToDevice);
-    
-    int blocksPerGrid = 1;
+
+    cudaMemcpy(d_sum, &zero,
+        sizeof(float),
+        cudaMemcpyHostToDevice);
+
+    int blocksPerGrid = vec->rowSize / MAX_BLOCK_SIZE + 1;
     int threadsPerBlock = MAX_BLOCK_SIZE;
 
     d_normalize<<<blocksPerGrid, threadsPerBlock>>>(d_vec, vec->rowSize, vec->colSize, d_sum);

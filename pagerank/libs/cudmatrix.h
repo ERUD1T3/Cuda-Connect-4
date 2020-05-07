@@ -13,7 +13,7 @@ typedef struct pair Pair;
 DMatrix *initDMatrix(uint numpg); //initialize new dense matrix
 Vector *initVector(uint numpg);   // intialize a new vector
 void printDMatrix(DMatrix *dmat);
-void fillDMatrix(DMatrix *mat, double val);
+void fillDMatrix(DMatrix *mat, float val);
 void destroyDMatrix(DMatrix *mat);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +25,7 @@ struct dmatrix
     //square matrix
     uint rowSize, colSize;
     // probabilities contained in the matrix
-    double *data;
+    float *data;
     // row * width + col
 };
 
@@ -40,9 +40,9 @@ DMatrix *initDMatrix(uint numpg)
     m->rowSize = numpg;
 
     // setting up data matrix to zeros
-    m->data = (double *)malloc(m->colSize * m->rowSize * sizeof(double));
+    m->data = (float *)malloc(m->colSize * m->rowSize * sizeof(float));
     // for (uint r = 0; r < numpg; ++r)
-    //     matrix->data[r] = (double *)malloc(numpg * sizeof(double));
+    //     matrix->data[r] = (float *)malloc(numpg * sizeof(float));
 
     fillDMatrix(m, 0.0);
     // fillDMatrix(matrix, 1.0 / numpg);
@@ -80,16 +80,16 @@ Vector *initVector(uint numpg)
     vec->colSize = 1;
 
     // setting up data matrix to zeros
-    vec->data = (double *)malloc(vec->rowSize * vec->colSize * sizeof(double));
+    vec->data = (float *)malloc(vec->rowSize * vec->colSize * sizeof(float));
     // for (uint r = 0; r < numpg; ++r)
-    //     vec->data[r] = (double *)malloc(sizeof(double));
+    //     vec->data[r] = (float *)malloc(sizeof(float));
 
     fillDMatrix(vec, 1.0 / numpg);
     return vec;
 }
 
 
-Vector *initVectorV(uint size, double val)
+Vector *initVectorV(uint size, float val)
 {
     //initialize the surf vector
     Vector *vec = (Vector *)malloc(sizeof(Vector));
@@ -98,9 +98,9 @@ Vector *initVectorV(uint size, double val)
     vec->colSize = 1;
 
     // setting up data matrix to zeros
-    vec->data = (double *)malloc(vec->colSize * vec->rowSize * sizeof(double));
+    vec->data = (float *)malloc(vec->colSize * vec->rowSize * sizeof(float));
     // for (uint r = 0; r < size; ++r)
-    //     vec->data[r] = (double *)malloc(sizeof(double));
+    //     vec->data[r] = (float *)malloc(sizeof(float));
 
     fillDMatrix(vec, val);
     return vec;
@@ -122,7 +122,7 @@ void printDMatrix(DMatrix *m)
     printf("]\n");
 }
 
-void fillDMatrix(DMatrix *m, double val)
+void fillDMatrix(DMatrix *m, float val)
 {
     // fillDMatrix the content of a DMatrix to val specified
     for (uint r = 0; r < m->rowSize; ++r)

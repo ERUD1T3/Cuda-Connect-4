@@ -2,7 +2,7 @@
 CC     = cc -std=c99
 CFLAGS = -Wall -Wextra -O3 -g3
 LDLIBS = -lm
-N = 5000
+N = 1000
 
 all: cudaC4 pgrkcuda pgrkmpi pgrkserial pgrkomp
 
@@ -51,4 +51,6 @@ runserial:
 
 runcuda:
 	./bin/pgrkcuda $(N)
+
+runall: runserial runmpi runomp runcuda
 

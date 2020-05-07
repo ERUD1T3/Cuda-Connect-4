@@ -23,7 +23,7 @@ int main(int argc, char *argv[])
     //reading number of pages from terminal
     uint numpg = (argc > 1) ? atoi(argv[1]) : 16;
 
-    printf("-------Dense Matrix Test-----------------------\n\n");
+    // printf("-------Dense Matrix Test-----------------------\n\n");
 
     clock_t startTime, endTime;
 
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
 
     if (numpg <= 16)
     { // print the page rank vector is small
-        printf("pagerank vector after web surfing\n");
+        // printf("pagerank vector after web surfing\n");
         printDMatrix(pgrkV);
     }
 
@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     minmaxPageRank(pgrkV);
 
     endTime = clock();
-    printf("\nruntime = %.16e\n", ((double)(endTime - startTime)) / CLOCKS_PER_SEC);
+    printf("\n serial runtime = %.16e\n\n", ((double)(endTime - startTime)) / CLOCKS_PER_SEC);
 
     // garbage management
     destroyDMatrix(H);

@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
     //reading number of pages from terminal
     uint numpg = (argc > 1) ? atoi(argv[1]) : 16;
 
-    printf("number of pages = %d\n", numpg);
+    // printf("number of pages = %d\n", numpg);
 
     // #pragma omp parallel
     // {
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
 
     if (numpg <= 16)
     { // print the page rank vector is small
-        printf("pagerank vector after web surfing\n");
+        // printf("pagerank vector after web surfing\n\n");
         printDMatrix(pgrkV);
     }
 
@@ -72,7 +72,7 @@ int main(int argc, char *argv[])
     minmaxPageRank(pgrkV);
 
     endTime = omp_get_wtime();
-    printf("\nruntime = %.16e\n", endTime - startTime);
+    printf("\n omp runtime = %.16e\n\n", endTime - startTime);
 
     // garbage management
     destroyDMatrix(H);
